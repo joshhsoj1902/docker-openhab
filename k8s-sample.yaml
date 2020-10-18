@@ -1,0 +1,107 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: openhab-storage
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  claimRef:
+    namespace: openhab
+    name: openhab-storage
+  nfs:
+    server: 192.168.5.110
+    path: /mnt/nfs/kubernetes/openhab
+
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: openhab-storage
+  namespace: openhab
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  resources:
+    requests:
+      storage: 5Gi
+  volumeName: openhab-storage
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openhab
+  namespace: openhab
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: openhab
+  template:
+    metadata:
+      labels:
+        app: openhab
+    spec:
+      hostNetwork: true
+      # securityContext:
+      #   runAsUser: 1000
+      #   runAsGroup: 1000
+      containers:
+        - name: openhab
+          # image: "openhab/openhab:2.5.9"
+          image: "joshhsoj1902/openhab:latest"
+          imagePullPolicy: Always
+          env:
+            # - name: USER_ID
+            #   value: "1000" 
+            # - name: GROUP_ID
+            #   value: "1000" 
+            - name: OPENHAB_HTTP_PORT
+              value: "18080"
+            - name: OPENHAB_HTTP_PORT
+              value: "18443"
+          ports:
+          - name: https
+            containerPort: 18443
+            protocol: TCP
+          volumeMounts:
+          - name: openhab-storage
+            mountPath: /openhab/addons
+            subPath: addons
+          - name: openhab-storage
+            mountPath: /openhab/conf
+            subPath: conf
+          - name: openhab-storage
+            mountPath: /openhab/userdata
+            subPath: userdata
+      volumes:
+        - name: openhab-storage
+          persistentVolumeClaim:
+            claimName: openhab-storage
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: openhab
+  name: openhab
+  namespace: openhab
+spec:
+  ports:
+  - name: http2
+    port: 18443
+    protocol: TCP
+    targetPort: 18443
+  selector:
+    app: openhab
+  type: ClusterIP
+
